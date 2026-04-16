@@ -22,6 +22,22 @@ interface CommandResult {
   success: boolean;
 }
 
+function isUnroutableHost(hostname: string): boolean {
+  return hostname === "0.0.0.0" || hostname === "::";
+}
+
+function sanitizeBaseUrl(rawUrl: string): null | string {
+  try {
+    const parsed = new URL(rawUrl);
+    if (isUnroutableHost(parsed.hostname)) {
+      return null;
+    }
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
 function parseBoolean(value: unknown): boolean {
   if (typeof value === "boolean") {
     return value;
@@ -79,10 +95,16 @@ function ensureDefaultIniFile(): string {
 function buildPublicBaseUrls(port: number): string[] {
   const envValue = process.env.API_PUBLIC_BASE_URLS;
   if (envValue) {
-    return envValue
+    const parsedUrls = envValue
       .split(",")
       .map((item) => item.trim())
-      .filter((item) => item.length > 0);
+      .filter((item) => item.length > 0)
+      .map((item) => sanitizeBaseUrl(item))
+      .filter((item): item is string => item !== null);
+
+    if (parsedUrls.length > 0) {
+      return parsedUrls;
+    }
   }
 
   const urls = new Set<string>();
@@ -95,7 +117,9 @@ function buildPublicBaseUrls(port: number): string[] {
       if (address.family !== "IPv4" || address.internal) {
         continue;
       }
-      urls.add(`http://${address.address}:${port}`);
+      if (!isUnroutableHost(address.address)) {
+        urls.add(`http://${address.address}:${port}`);
+      }
     }
   }
 
@@ -119,12 +143,14 @@ function buildOpenApiSpecForRequest(
   publicBaseUrls: string[],
 ): ReturnType<typeof buildOpenApiSpec> {
   const requestHost = req.get("host");
-  const requestProtocol = req.protocol;
+  const requestProtocol = process.env.API_DEFAULT_SCHEME ?? req.protocol;
   const urls = [...publicBaseUrls];
 
   if (requestHost) {
-    const requestUrl = `${requestProtocol}://${requestHost}`;
-    urls.unshift(requestUrl);
+    const requestUrl = sanitizeBaseUrl(`${requestProtocol}://${requestHost}`);
+    if (requestUrl) {
+      urls.unshift(requestUrl);
+    }
   }
 
   return buildOpenApiSpec({ serverUrls: Array.from(new Set(urls)) });

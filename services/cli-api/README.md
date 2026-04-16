@@ -41,6 +41,14 @@ To force explicit URLs (for example HTTPS behind reverse proxy):
 API_PUBLIC_BASE_URLS="https://api.example.com,http://192.168.0.33:3100" pnpm api:server
 ```
 
+Invalid/unroutable hosts such as `0.0.0.0` are ignored automatically.
+
+If your app is behind a reverse proxy and you want Swagger URLs to be generated with HTTPS by default, set:
+
+```bash
+API_DEFAULT_SCHEME=https pnpm api:server
+```
+
 ## Endpoints
 
 - `GET /health`
