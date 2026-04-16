@@ -143,6 +143,71 @@ Configuration Hierarchy:
 
 If a mandatory attribute is not defined in either the `.ini` file or as a command-line option, the tool will raise an error.
 
+### REST wrapper for CLI commands (external service)
+
+This repository also includes an **external REST wrapper** under `services/cli-api/` that executes CLI commands and maps request parameters **1:1** to CLI options.
+
+Run it with:
+
+```bash
+pnpm api:server
+```
+
+By default it binds to `0.0.0.0:3100` (reachable from other machines on the same network). You can override host and port with:
+
+```bash
+API_HOST=0.0.0.0 API_PORT=3100 pnpm api:server
+```
+
+CORS is enabled by default with `*` (always allow). You can restrict it with:
+
+```bash
+API_CORS_ALLOWED_ORIGINS="https://wallet.example.com,https://swagger.example.com" pnpm api:server
+```
+
+Swagger server URLs are auto-detected from machine IPv4 addresses (plus localhost) and the current request host is promoted as first default.  
+To force a specific list (for example HTTPS or reverse proxy public URLs), use:
+
+```bash
+API_PUBLIC_BASE_URLS="https://api.example.com,http://192.168.0.33:3100" pnpm api:server
+```
+
+Available endpoints:
+
+- `GET /health`
+- `GET /openapi.json`
+- `GET /docs` (Swagger UI)
+- `GET|POST /api/test/issuance`
+- `GET|POST /api/test/verification` (alias of `test:presentation`)
+- `GET|POST /api/test/presentation`
+
+Generate/update OpenAPI JSON:
+
+```bash
+pnpm api:openapi
+```
+
+Run generation + server:
+
+```bash
+pnpm api:server:openapi
+```
+
+#### `credential_offer` and `presentation_request` aliases
+
+The wrapper supports compatibility aliases:
+
+- `credential_offer` / `credential_offer_uri` → `--credential-offer-uri`
+- `presentation_request` / `presentation_request_uri` → `--presentation-authorize-uri`
+
+This lets you pass these values directly in `/api/test/issuance` and `/api/test/verification` while still mapping to the current CLI options.
+
+#### Avoiding `config.ini`
+
+If `--file-ini` is not provided, the wrapper automatically injects a generated default INI file at runtime (`.generated/api-default.config.ini`) based on `services/cli-api/default.config.ini`.
+
+This avoids requiring a repository-root `config.ini` while preserving CLI behavior and allowing command options to override defaults.
+
 Examples:
 
 Override a specific value from the command line:

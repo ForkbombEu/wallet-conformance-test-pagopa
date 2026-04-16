@@ -1,0 +1,541 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "WCT CLI REST Wrapper",
+    "version": "1.0.0",
+    "description": "External REST wrapper around the WCT CLI. Request fields map 1:1 to CLI options."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3100"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "RunRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "file-ini": {
+            "type": "string",
+            "description": "Path to custom INI configuration file"
+          },
+          "credential-issuer-uri": {
+            "type": "string",
+            "description": "Override the credential issuer URL"
+          },
+          "credential-offer-uri": {
+            "type": "string",
+            "description": "Override the credential offer URL"
+          },
+          "presentation-authorize-uri": {
+            "type": "string",
+            "description": "Override the presentation authorize URL"
+          },
+          "credential-types": {
+            "type": "string",
+            "description": "Comma-separated list of credential configuration IDs to test"
+          },
+          "timeout": {
+            "type": "number",
+            "description": "Network timeout in seconds"
+          },
+          "max-retries": {
+            "type": "number",
+            "description": "Maximum number of retry attempts"
+          },
+          "log-level": {
+            "type": "string",
+            "description": "Logging level (DEBUG, INFO, WARN, ERROR)"
+          },
+          "log-file": {
+            "type": "string",
+            "description": "Path to log file"
+          },
+          "port": {
+            "type": "number",
+            "description": "Trust Anchor server port"
+          },
+          "save-credential": {
+            "type": "boolean",
+            "description": "Save the received credential to disk"
+          },
+          "issuance-tests-dir": {
+            "type": "string",
+            "description": "Override directory for issuance test specs"
+          },
+          "issuance-certificate-subject": {
+            "type": "string",
+            "description": "Override mock issuer's certificate subject"
+          },
+          "presentation-tests-dir": {
+            "type": "string",
+            "description": "Override directory for presentation test specs"
+          },
+          "steps-mapping": {
+            "type": "string",
+            "description": "Override steps mapping as comma-separated key=value pairs"
+          },
+          "unsafe-tls": {
+            "type": "boolean",
+            "description": "Disable TLS certificate verification"
+          },
+          "external-ta-url": {
+            "type": "string",
+            "description": "URL of an external Trust Anchor"
+          },
+          "external-ta-onboarding-url": {
+            "type": "string",
+            "description": "Onboarding URL of an external Trust Anchor"
+          },
+          "tests": {
+            "type": "string",
+            "description": "Comma separated list of test names"
+          },
+          "credential_offer": {
+            "type": "string",
+            "description": "Compatibility alias for credential-offer-uri, mapped 1:1 to --credential-offer-uri"
+          },
+          "presentation_request": {
+            "type": "string",
+            "description": "Compatibility alias for presentation-authorize-uri, mapped 1:1 to --presentation-authorize-uri"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/test/issuance": {
+      "get": {
+        "summary": "Run wct test:issuance with query params",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "file-ini",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Path to custom INI configuration file"
+          },
+          {
+            "in": "query",
+            "name": "credential-issuer-uri",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override the credential issuer URL"
+          },
+          {
+            "in": "query",
+            "name": "credential-offer-uri",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override the credential offer URL"
+          },
+          {
+            "in": "query",
+            "name": "presentation-authorize-uri",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override the presentation authorize URL"
+          },
+          {
+            "in": "query",
+            "name": "credential-types",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated list of credential configuration IDs to test"
+          },
+          {
+            "in": "query",
+            "name": "timeout",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Network timeout in seconds"
+          },
+          {
+            "in": "query",
+            "name": "max-retries",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Maximum number of retry attempts"
+          },
+          {
+            "in": "query",
+            "name": "log-level",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Logging level (DEBUG, INFO, WARN, ERROR)"
+          },
+          {
+            "in": "query",
+            "name": "log-file",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Path to log file"
+          },
+          {
+            "in": "query",
+            "name": "port",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Trust Anchor server port"
+          },
+          {
+            "in": "query",
+            "name": "save-credential",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Save the received credential to disk"
+          },
+          {
+            "in": "query",
+            "name": "issuance-tests-dir",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override directory for issuance test specs"
+          },
+          {
+            "in": "query",
+            "name": "issuance-certificate-subject",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override mock issuer's certificate subject"
+          },
+          {
+            "in": "query",
+            "name": "presentation-tests-dir",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override directory for presentation test specs"
+          },
+          {
+            "in": "query",
+            "name": "steps-mapping",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override steps mapping as comma-separated key=value pairs"
+          },
+          {
+            "in": "query",
+            "name": "unsafe-tls",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Disable TLS certificate verification"
+          },
+          {
+            "in": "query",
+            "name": "external-ta-url",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "URL of an external Trust Anchor"
+          },
+          {
+            "in": "query",
+            "name": "external-ta-onboarding-url",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Onboarding URL of an external Trust Anchor"
+          },
+          {
+            "in": "query",
+            "name": "tests",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma separated list of test names"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Command execution result"
+          }
+        }
+      },
+      "post": {
+        "summary": "Run wct test:issuance with JSON body",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Command execution result"
+          }
+        }
+      }
+    },
+    "/api/test/verification": {
+      "get": {
+        "summary": "Run wct test:presentation with query params",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "file-ini",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Path to custom INI configuration file"
+          },
+          {
+            "in": "query",
+            "name": "credential-issuer-uri",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override the credential issuer URL"
+          },
+          {
+            "in": "query",
+            "name": "credential-offer-uri",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override the credential offer URL"
+          },
+          {
+            "in": "query",
+            "name": "presentation-authorize-uri",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override the presentation authorize URL"
+          },
+          {
+            "in": "query",
+            "name": "credential-types",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated list of credential configuration IDs to test"
+          },
+          {
+            "in": "query",
+            "name": "timeout",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Network timeout in seconds"
+          },
+          {
+            "in": "query",
+            "name": "max-retries",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Maximum number of retry attempts"
+          },
+          {
+            "in": "query",
+            "name": "log-level",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Logging level (DEBUG, INFO, WARN, ERROR)"
+          },
+          {
+            "in": "query",
+            "name": "log-file",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Path to log file"
+          },
+          {
+            "in": "query",
+            "name": "port",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Trust Anchor server port"
+          },
+          {
+            "in": "query",
+            "name": "save-credential",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Save the received credential to disk"
+          },
+          {
+            "in": "query",
+            "name": "issuance-tests-dir",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override directory for issuance test specs"
+          },
+          {
+            "in": "query",
+            "name": "issuance-certificate-subject",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override mock issuer's certificate subject"
+          },
+          {
+            "in": "query",
+            "name": "presentation-tests-dir",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override directory for presentation test specs"
+          },
+          {
+            "in": "query",
+            "name": "steps-mapping",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Override steps mapping as comma-separated key=value pairs"
+          },
+          {
+            "in": "query",
+            "name": "unsafe-tls",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Disable TLS certificate verification"
+          },
+          {
+            "in": "query",
+            "name": "external-ta-url",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "URL of an external Trust Anchor"
+          },
+          {
+            "in": "query",
+            "name": "external-ta-onboarding-url",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Onboarding URL of an external Trust Anchor"
+          },
+          {
+            "in": "query",
+            "name": "tests",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma separated list of test names"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Command execution result"
+          }
+        }
+      },
+      "post": {
+        "summary": "Run wct test:presentation with JSON body",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Command execution result"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "summary": "OpenAPI specification for this service",
+        "responses": {
+          "200": {
+            "description": "OpenAPI JSON"
+          }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "summary": "Swagger UI page",
+        "responses": {
+          "200": {
+            "description": "HTML page with Swagger UI"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Service is running"
+          }
+        }
+      }
+    }
+  }
+}
