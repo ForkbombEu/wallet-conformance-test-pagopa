@@ -143,14 +143,6 @@ Configuration Hierarchy:
 
 If a mandatory attribute is not defined in either the `.ini` file or as a command-line option, the tool will raise an error.
 
-### REST wrapper for CLI commands (external service)
-
-The repository includes a separate REST wrapper in `services/cli-api/` for running CLI commands over HTTP.
-
-To keep the top-level README stable and reduce merge conflicts, all API-wrapper docs are maintained in:
-
-- [`services/cli-api/README.md`](./services/cli-api/README.md)
-
 Examples:
 
 Override a specific value from the command line:

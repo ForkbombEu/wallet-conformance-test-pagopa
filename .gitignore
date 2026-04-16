@@ -45,7 +45,6 @@ Thumbs.db
 data
 config.ini
 .generated
-services/cli-api/openapi.generated.json
 
 # TLS certificates and private keys generated at test runtime
 # Filenames are KSUID-based (collision-resistant) and must never be committed
