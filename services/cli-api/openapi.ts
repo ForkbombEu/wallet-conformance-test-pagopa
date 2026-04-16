@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { commonCliOptions } from "./options";
@@ -185,10 +185,12 @@ export function buildOpenApiSpec(
 }
 
 if (process.argv.includes("--write")) {
-  const outPath = path.resolve(
-    process.cwd(),
-    "services/cli-api/openapi.generated.json",
-  );
+  const outDir = path.resolve(process.cwd(), ".generated");
+  const outPath = path.resolve(outDir, "cli-api.openapi.generated.json");
+
+  if (!existsSync(outDir)) {
+    mkdirSync(outDir, { recursive: true });
+  }
 
   writeFileSync(outPath, JSON.stringify(buildOpenApiSpec(), null, 2));
   // eslint-disable-next-line no-console
