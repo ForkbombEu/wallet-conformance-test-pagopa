@@ -75,14 +75,14 @@ export interface PushedAuthorizationRequestStepOptions {
  * The response of this step includes the pushed authorization response containing the request URI and other details.
  */
 export class PushedAuthorizationRequestDefaultStep extends StepFlow {
-  tag = "PUSHED_AUTHORIZATION_REQUEST";
+  static readonly tag = "PUSHED_AUTHORIZATION_REQUEST";
 
   async run(
     options: PushedAuthorizationRequestStepOptions,
   ): Promise<PushedAuthorizationRequestResponse> {
     return await this.execute<PushedAuthorizationRequestExecuteResponse>(
       async () => {
-        const log = this.log.withTag(this.tag);
+        const log = this.log;
 
         log.debug(`Starting PushedAuthorizationRequest Step`);
 
@@ -94,7 +94,7 @@ export class PushedAuthorizationRequestDefaultStep extends StepFlow {
           signJwt: signJwtCallback([unitKey.privateKey]),
         };
 
-        const createParOptions: CreatePushedAuthorizationRequestOptions = {
+        const createParOptions = {
           audience: options.baseUrl,
           authorization_details: options.credentialConfigurationIds.map(
             (id) => ({
@@ -111,6 +111,7 @@ export class PushedAuthorizationRequestDefaultStep extends StepFlow {
             callbacks as CreatePushedAuthorizationRequestOptions["callbacks"],
           clientId: unitKey.publicKey.kid,
           codeChallengeMethodsSupported: ["S256"],
+          config: this.ioWalletSdkConfig,
           dpop: {
             signer: {
               alg: "ES256",
@@ -126,7 +127,12 @@ export class PushedAuthorizationRequestDefaultStep extends StepFlow {
         const finalParOptions = {
           ...createParOptions,
           ...options.createParOverrides,
-        };
+        } as CreatePushedAuthorizationRequestOptions;
+
+        log.debug(
+          "Final PAR options:",
+          JSON.stringify(finalParOptions, null, 2),
+        );
 
         log.info(
           `Sending PAR request to ${options.pushedAuthorizationRequestEndpoint}`,
@@ -154,11 +160,19 @@ export class PushedAuthorizationRequestDefaultStep extends StepFlow {
 
         log.debug(`PKCE code verifier ${codeVerifier}`);
 
+        const parResponse =
+          await fetchPushedAuthorizationResponse(fetchOptions);
+        log.debug("PAR response:", JSON.stringify(parResponse, null, 2));
+
         return {
-          ...(await fetchPushedAuthorizationResponse(fetchOptions)),
+          ...parResponse,
           codeVerifier,
         };
       },
     );
+  }
+
+  tag(): string {
+    return PushedAuthorizationRequestDefaultStep.tag;
   }
 }

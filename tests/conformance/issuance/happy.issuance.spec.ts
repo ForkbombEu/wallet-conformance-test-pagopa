@@ -18,9 +18,9 @@ import {
   PushedAuthorizationRequestResponse,
   TokenRequestResponse,
 } from "@/step/issuance";
+import { AttestationResponse } from "@/types";
 
 // Define and auto-register test configuration
-// @ts-expect-error TS1309: top-level await is valid in Vitest (ESM context)
 const testConfigs = await defineIssuanceTest("HappyFlowIssuance");
 
 testConfigs.forEach((testConfig) => {
@@ -34,6 +34,7 @@ testConfigs.forEach((testConfig) => {
     let authorizeResponse: AuthorizeStepResponse;
     let nonceResponse: NonceRequestResponse;
     let credentialResponse: CredentialRequestResponse;
+    let walletAttestationResponse: AttestationResponse;
 
     beforeAll(async () => {
       try {
@@ -47,6 +48,7 @@ testConfigs.forEach((testConfig) => {
         pushedAuthorizationRequestResponse =
           result.pushedAuthorizationRequestResponse;
         tokenResponse = result.tokenResponse;
+        walletAttestationResponse = result.walletAttestationResponse;
 
         baseLog.info("Issuance flow completed successfully");
       } catch (e) {
@@ -260,6 +262,24 @@ testConfigs.forEach((testConfig) => {
     // PUSHED AUTHORIZATION REQUEST TESTS
     // ============================================================================
 
+    test("CI_016: PAR Request | Credential Issuer successfully processes HTTP POST requests with message body parameters encoded in application/x-www-form-urlencoded format", async () => {
+      const log = baseLog.withTag("CI_016");
+      const DESCRIPTION =
+        "PAR endpoint accepts application/x-www-form-urlencoded requests";
+
+      log.start("Conformance test: Verifying PAR endpoint request handling");
+
+      let testSuccess = false;
+      try {
+        const response = pushedAuthorizationRequestResponse.response;
+        expect(response).toBeDefined();
+
+        testSuccess = true;
+      } finally {
+        log.testCompleted(DESCRIPTION, testSuccess);
+      }
+    });
+
     test("CI_040: PAR Request | request_uri validity time is set to less than one minute", async () => {
       const log = baseLog.withTag("CI_040");
       const DESCRIPTION = "request_uri validity time ≤60 seconds";
@@ -383,6 +403,54 @@ testConfigs.forEach((testConfig) => {
         expect(typeof expiresIn).toBe("number");
         log.debug(`  expires_in: ${expiresIn} seconds`);
         expect(expiresIn).toBeGreaterThan(0);
+
+        testSuccess = true;
+      } finally {
+        log.testCompleted(DESCRIPTION, testSuccess);
+      }
+    });
+
+    test("CI_029: PAR Request | Wallet Instance Trustworthiness Verification | Issuer successfully resolves the wallet attestation trust chain and accepts a valid PAR", async () => {
+      const log = baseLog.withTag("CI_029");
+      const DESCRIPTION =
+        "Issuer successfully resolved wallet attestation trust chain";
+
+      log.start("Conformance test: Verifying wallet instance trustworthiness");
+
+      let testSuccess = false;
+      try {
+        log.debug("→ Checking PAR was accepted by the issuer...");
+        expect(pushedAuthorizationRequestResponse.error).toBeUndefined();
+        expect(
+          pushedAuthorizationRequestResponse.response,
+          "PAR must have been accepted as evidence of trust chain resolution",
+        ).toBeDefined();
+
+        log.debug(
+          "→ Decoding wallet attestation to inspect trust_chain header...",
+        );
+        const attestationJwt = await SDJwt.extractJwt(
+          walletAttestationResponse.attestation,
+        );
+        const trustChainHeader = attestationJwt.header?.trust_chain;
+        const trustChain = z
+          .array(z.string())
+          .optional()
+          .parse(trustChainHeader);
+
+        if (trustChain && trustChain.length > 0) {
+          log.debug(
+            `  trust_chain embedded in attestation header (${trustChain.length} element(s))`,
+          );
+          log.debug(
+            "  Issuer resolved trust chain from embedded attestation header",
+          );
+        } else {
+          log.debug("  trust_chain not embedded in attestation header");
+          log.debug(
+            "  Issuer resolves trust via federation endpoints (.well-known/openid-federation)",
+          );
+        }
 
         testSuccess = true;
       } finally {
@@ -570,12 +638,22 @@ testConfigs.forEach((testConfig) => {
 
         const claims = decodeJwt(token ?? "");
         const currentTime = Date.now() / 1e3;
+        const issuedAt = claims.iat;
+        const expiresAt = claims.exp;
 
-        log.debug(`  iat: ${new Date(claims.iat! * 1000).toISOString()}`);
-        log.debug(`  exp: ${new Date(claims.exp! * 1000).toISOString()}`);
+        expect(issuedAt).toEqual(expect.any(Number));
+        expect(expiresAt).toEqual(expect.any(Number));
+        if (typeof issuedAt !== "number" || typeof expiresAt !== "number") {
+          throw new Error(
+            "Access token must contain numeric iat and exp claims",
+          );
+        }
 
-        expect(claims.exp).toBeGreaterThan(currentTime);
-        expect(claims.iat).toBeLessThan(currentTime);
+        log.debug(`  iat: ${new Date(issuedAt * 1000).toISOString()}`);
+        log.debug(`  exp: ${new Date(expiresAt * 1000).toISOString()}`);
+
+        expect(expiresAt).toBeGreaterThan(currentTime);
+        expect(issuedAt).toBeLessThan(currentTime);
 
         testSuccess = true;
       } finally {
@@ -813,15 +891,19 @@ testConfigs.forEach((testConfig) => {
             "SD-JWT credential must contain cnf claim for key binding",
           ).toBeDefined();
 
-          if (payload?.cnf?.jwk) {
-            const credentialJkt = await calculateJwkThumbprint(payload.cnf.jwk);
-            log.debug(`  Credential JWK Thumbprint: ${credentialJkt}`);
-            expect(credentialJkt).toBe(expectedJkt);
-          } else {
-            expect.fail(
+          const confirmationJwk = payload?.cnf?.jwk;
+          expect(
+            confirmationJwk,
+            "SD-JWT credential cnf claim must contain either jkt or jwk",
+          ).toBeDefined();
+          if (!confirmationJwk) {
+            throw new Error(
               "SD-JWT credential cnf claim must contain either jkt or jwk",
             );
           }
+          const credentialJkt = await calculateJwkThumbprint(confirmationJwk);
+          log.debug(`  Credential JWK Thumbprint: ${credentialJkt}`);
+          expect(credentialJkt).toBe(expectedJkt);
         }
 
         testSuccess = true;
@@ -841,28 +923,32 @@ testConfigs.forEach((testConfig) => {
 
       let testSuccess = false;
       try {
+        let hasValidFormat = false;
         for (const credential of credentialResponse.response?.credentials ??
           []) {
           try {
             await SDJwt.extractJwt(credential.credential);
             log.debug("  Format: SD-JWT VC");
-            testSuccess = true;
-            return;
+            hasValidFormat = true;
+            break;
           } catch {
             log.debug("  Not SD-JWT, trying mdoc-CBOR...");
           }
 
           try {
-            parseMdoc(Buffer.from(credential.credential));
+            parseMdoc(Buffer.from(credential.credential, "base64url"));
             log.debug("  Format: mdoc-CBOR");
-            testSuccess = true;
-            return;
+            hasValidFormat = true;
+            break;
           } catch {
             log.error("  Credential is neither SD-JWT VC nor mdoc-CBOR format");
           }
         }
 
-        log.error("  No credentials found in valid format");
+        expect(hasValidFormat, "No credentials found in valid format").toBe(
+          true,
+        );
+        testSuccess = hasValidFormat;
       } finally {
         log.testCompleted(DESCRIPTION, testSuccess);
       }

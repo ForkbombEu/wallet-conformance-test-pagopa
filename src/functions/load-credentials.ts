@@ -1,7 +1,7 @@
 import { ItWalletSpecsVersion } from "@pagopa/io-wallet-utils";
 import { SDJwt } from "@sd-jwt/core";
 import { digest } from "@sd-jwt/crypto-nodejs";
-import { decode } from "cbor";
+import cbor from "cbor";
 import { readdirSync, readFileSync } from "node:fs";
 
 import { buildJwksPath, ensureDir, loadJwks, parseMdoc } from "@/logic";
@@ -20,6 +20,8 @@ import {
   isCredentialMdocExpired,
   isCredentialSdJwtExpired,
 } from "./mock-credentials";
+
+const { decode } = cbor;
 
 /**
  * Loads credentials from a specified directory, verifies them, and returns the valid ones.
@@ -151,7 +153,7 @@ export async function parseCredentialStatus(
     );
 
   switch (credential.typ) {
-    case "dc+sd-jwt":
+    case "dc+sd-jwt": {
       const sdJwtPayload = credential.parsed.jwt.payload;
       if (!sdJwtPayload || typeof sdJwtPayload !== "object")
         throw new Error("parsed sd-jwt has empty or malformed payload");
@@ -159,7 +161,8 @@ export async function parseCredentialStatus(
       if (!sdJwtPayload.status) return null;
 
       return sdJwtPayload.status as StatusClaim;
-    case "mso_mdoc":
+    }
+    case "mso_mdoc": {
       const mdocPayloadTag = decode(
         credential.parsed.issuerSigned.issuerAuth.payload,
       );
@@ -177,6 +180,7 @@ export async function parseCredentialStatus(
       if (!mdocPayload.status) return null;
 
       return mdocPayload.status as StatusClaim;
+    }
     default:
       return null;
   }

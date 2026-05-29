@@ -2,7 +2,7 @@ import { DataItem, Document } from "@auth0/mdl";
 import { ItWalletSpecsVersion } from "@pagopa/io-wallet-utils";
 import { digest, ES256, generateSalt } from "@sd-jwt/crypto-nodejs";
 import { SDJwtVcInstance } from "@sd-jwt/sd-jwt-vc";
-import { decode, encode, Tagged } from "cbor";
+import cbor from "cbor";
 import { decodeJwt } from "jose";
 
 import {
@@ -11,12 +11,10 @@ import {
   loadJsonDumps,
 } from "@/logic";
 import { generateSRIHash } from "@/logic/sd-jwt";
-import { fetchExternalSubordinateStatement } from "@/trust-anchor/external-ta-registration";
-import {
-  isExternalTrustAnchor,
-  resolveTrustAnchorBaseUrl,
-} from "@/trust-anchor/trust-anchor-resolver";
+import { resolveTrustAnchorBaseUrl } from "@/trust-anchor/trust-anchor-resolver";
 import { Config, Credential, KeyPair, KeyPairJwk } from "@/types";
+
+const { decode, encode, Tagged } = cbor;
 
 export async function buildIssuerEntityConfiguration_V1_0(
   metadata: {
@@ -85,10 +83,11 @@ export async function buildMockMdlMdoc_V1_0(
     ),
   );
   issuerSigned.issuerAuth[2] = payloadWithStatus;
-  const parsed = document as any;
-  parsed.issuerSigned.issuerAuth.payload = payloadWithStatus;
+  Object.assign(document.issuerSigned.issuerAuth, {
+    payload: payloadWithStatus,
+  });
 
-  const nameSpaces = new Map<string, Tagged[]>();
+  const nameSpaces = new Map<string, InstanceType<typeof Tagged>[]>();
   for (const [namespace, items] of issuerSigned["nameSpaces"] as Map<
     string,
     DataItem[]
@@ -107,7 +106,7 @@ export async function buildMockMdlMdoc_V1_0(
 
   return {
     compact,
-    parsed,
+    parsed: document,
     typ: "mso_mdoc",
   };
 }
@@ -115,7 +114,6 @@ export async function buildMockMdlMdoc_V1_0(
 export async function buildMockSdJwt_V1_0(
   metadata: {
     iss: string;
-    network: Config["network"];
     trust: Config["trust"];
     trustAnchor: Config["trust_anchor"];
   },
@@ -125,21 +123,13 @@ export async function buildMockSdJwt_V1_0(
   keyPair: KeyPair,
 ): Promise<Credential> {
   const trustAnchorBaseUrl = resolveTrustAnchorBaseUrl(metadata.trustAnchor);
-  const taEntityConfiguration = isExternalTrustAnchor(
-    metadata.trustAnchor.external_ta_url,
-  )
-    ? await fetchExternalSubordinateStatement(
-        trustAnchorBaseUrl,
-        metadata.iss,
-        metadata.network,
-      )
-    : await createSubordinateTrustAnchorMetadata({
-        entityPublicJwk: keyPair.publicKey,
-        federationTrustAnchor: metadata.trust,
-        sub: metadata.iss,
-        trustAnchorBaseUrl: trustAnchorBaseUrl,
-        walletVersion: ItWalletSpecsVersion.V1_0,
-      });
+  const taEntityConfiguration = await createSubordinateTrustAnchorMetadata({
+    entityPublicJwk: keyPair.publicKey,
+    federationTrustAnchor: metadata.trust,
+    sub: metadata.iss,
+    trustAnchorBaseUrl,
+    walletVersion: ItWalletSpecsVersion.V1_0,
+  });
 
   const issEntityConfiguration = await buildIssuerEntityConfiguration_V1_0(
     metadata,
@@ -178,6 +168,7 @@ export async function buildMockSdJwt_V1_0(
       "birth_place",
       "nationalities",
       "personal_administrative_number",
+      "tax_id_code",
     ],
   };
 

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines-per-function */
 import { IssuerSignedDocument } from "@auth0/mdl";
 import {
   addSecondsToDate,
@@ -9,7 +10,7 @@ import { X509Certificate } from "@peculiar/x509";
 import { digest } from "@sd-jwt/crypto-nodejs";
 import { decodeJwt } from "@sd-jwt/decode";
 import { SDJwtVcInstance } from "@sd-jwt/sd-jwt-vc";
-import { decode } from "cbor";
+import cbor from "cbor";
 import { DcqlQuery } from "dcql";
 import { rmSync } from "node:fs";
 import { afterAll, describe, expect, it, vi } from "vitest";
@@ -27,10 +28,10 @@ import {
 } from "@/functions";
 import {
   buildJwksPath,
+  CLOCK_SKEW_TOLERANCE_MS,
   createKeys,
   createLogger,
   createVpTokenMdoc,
-  CLOCK_SKEW_TOLERANCE_MS,
   loadCertificate,
   loadConfig,
   loadJsonDumps,
@@ -42,6 +43,7 @@ import { KeyPairJwk, zTrustChain, zX5c } from "@/types";
 const backupDir = "./tests/mocked-data/backup";
 const credentialsDir = "./tests/mocked-data/credentials";
 const iss = "https://issuer.example.com";
+const { decode } = cbor;
 
 describe("Load Mocked Credentials", async () => {
   const config = loadConfig("./config.ini");
@@ -55,6 +57,7 @@ describe("Load Mocked Credentials", async () => {
   );
 
   it("should load a mix of valid sd-jwt and mdoc credentials V1_0", async () => {
+    let validationErrorMessage: string | undefined;
     try {
       const credentials = await loadCredentials(
         credentialsDir,
@@ -72,13 +75,12 @@ describe("Load Mocked Credentials", async () => {
     } catch (e) {
       if (e instanceof ValidationError) {
         console.error("Schema validation failed");
-        expect
-          .soft(
-            e.message.replace(": ", ":\n\t").replace(/,([A-Za-z])/g, "\n\t$1"),
-          )
-          .toBeNull();
+        validationErrorMessage = e.message
+          .replace(": ", ":\n\t")
+          .replace(/,([A-Za-z])/g, "\n\t$1");
       } else throw e;
     }
+    expect.soft(validationErrorMessage).toBeUndefined();
   });
 
   it("should create a new certificate", async () => {
@@ -97,11 +99,11 @@ describe("Load Mocked Credentials", async () => {
   });
 
   it("should create a new certificate in case the current one is actually expired", async () => {
-    (rmSync(
+    rmSync(
       "tests/mocked-data/federation_trust_anchors/localhost/trust_anchor_cert",
       { force: true },
-    ),
-      vi.useFakeTimers());
+    );
+    vi.useFakeTimers();
     const baseDate = new Date(2000, 1, 1);
     //Default expiration for the certificates is an year, so in two years it will be surely expired
     const twoYearsLater = new Date(2002, 1, 1);
@@ -206,7 +208,9 @@ describe("Load Mocked Credentials", async () => {
         });
         it("should return true because it's not past the jwt expiration", async () => {
           // Set system time to a second after expiration
-          vi.setSystemTime((jwtExpiration + 1) * 1000 + CLOCK_SKEW_TOLERANCE_MS);
+          vi.setSystemTime(
+            (jwtExpiration + 1) * 1000 + CLOCK_SKEW_TOLERANCE_MS,
+          );
           expect(
             isCredentialSdJwtExpired(pid.parsed, undefined, {
               jwt: true,
@@ -250,7 +254,9 @@ describe("Load Mocked Credentials", async () => {
         });
         it("should return true because it's not past the trust_chain expiration", async () => {
           // Set system time to a second after expiration
-          vi.setSystemTime((trustChainMinExp + 1) * 1000 + CLOCK_SKEW_TOLERANCE_MS);
+          vi.setSystemTime(
+            (trustChainMinExp + 1) * 1000 + CLOCK_SKEW_TOLERANCE_MS,
+          );
           expect(
             isCredentialSdJwtExpired(pid.parsed, undefined, {
               jwt: false,
@@ -376,7 +382,8 @@ describe("Load Mocked Credentials", async () => {
         it("should return true because it's not past the mdoc expiration", async () => {
           // Set system time to a second after expiration
           vi.setSystemTime(
-            (dateToSeconds(mDocExpiration) + 1) * 1000 + CLOCK_SKEW_TOLERANCE_MS,
+            (dateToSeconds(mDocExpiration) + 1) * 1000 +
+              CLOCK_SKEW_TOLERANCE_MS,
           );
           expect(
             isCredentialMdocExpired(mDL.parsed, undefined, {
@@ -405,7 +412,8 @@ describe("Load Mocked Credentials", async () => {
         it("should return true because it's not past the certificate expiration", async () => {
           // Set system time to a second after expiration
           vi.setSystemTime(
-            (dateToSeconds(certExpiration) + 1) * 1000 + CLOCK_SKEW_TOLERANCE_MS,
+            (dateToSeconds(certExpiration) + 1) * 1000 +
+              CLOCK_SKEW_TOLERANCE_MS,
           );
           expect(
             isCredentialMdocExpired(mDL.parsed, undefined, {
@@ -447,7 +455,8 @@ describe("Load Mocked Credentials", async () => {
         it("should return true because it's not past the trust chain certificate expiration", async () => {
           // Set system time to a second after expiration
           vi.setSystemTime(
-            (dateToSeconds(trustChainMinExp) + 1) * 1000 + CLOCK_SKEW_TOLERANCE_MS,
+            (dateToSeconds(trustChainMinExp) + 1) * 1000 +
+              CLOCK_SKEW_TOLERANCE_MS,
           );
           expect(
             isCredentialMdocExpired(mDL.parsed, undefined, {
@@ -465,7 +474,7 @@ describe("Load Mocked Credentials", async () => {
     });
   });
 
-  it.each(Object.values(ItWalletSpecsVersion))(
+  it.each([ItWalletSpecsVersion.V1_0, ItWalletSpecsVersion.V1_3])(
     "should regenerate expired credentials",
     async (version) => {
       rmSync(`${backupDir}/${version}/dc_sd_jwt_PersonIdentificationData`, {
@@ -579,10 +588,15 @@ describe("Generate Mocked Credentials", () => {
     );
 
     const claimsFromDecoded = decoded.disclosures?.reduce(
-      (prev, disclosure) => ({
-        ...prev,
-        [disclosure.key!]: disclosure.value,
-      }),
+      (prev, disclosure) => {
+        if (!disclosure.key) {
+          throw new Error("Disclosure key is required");
+        }
+        return {
+          ...prev,
+          [disclosure.key]: disclosure.value,
+        };
+      },
       {},
     );
 
@@ -618,10 +632,15 @@ describe("Generate Mocked Credentials", () => {
     );
 
     const claimsFromDecoded = decoded.disclosures?.reduce(
-      (prev, disclosure) => ({
-        ...prev,
-        [disclosure.key!]: disclosure.value,
-      }),
+      (prev, disclosure) => {
+        if (!disclosure.key) {
+          throw new Error("Disclosure key is required");
+        }
+        return {
+          ...prev,
+          [disclosure.key]: disclosure.value,
+        };
+      },
       {},
     );
 
@@ -827,8 +846,11 @@ describe("createVpTokenMdoc", () => {
     const documents = decode(Buffer.from(result, "base64url")).documents;
     expect(documents).toBeDefined();
 
-    const document = documents[0]!;
+    const document = documents[0];
     expect(document).toBeDefined();
+    if (!document) {
+      throw new Error("Expected device response to contain one document");
+    }
     expect(document.docType).toBe(docType);
     expect(document.issuerSigned.nameSpaces).toBeDefined();
     expect(document.issuerSigned.nameSpaces).toHaveProperty(namespace);

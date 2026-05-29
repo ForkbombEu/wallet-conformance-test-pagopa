@@ -22,6 +22,7 @@ import {
   loadOrCreateCertificateWithKey,
   verifyJwt,
 } from ".";
+import { resolvePackageAssetPath } from "./runtime-paths";
 
 export const CLOCK_SKEW_TOLERANCE_MS = 30_000;
 export const VALIDITY_MS = 1000 * 60 * 60 * 24 * 365;
@@ -105,7 +106,7 @@ export const loadJsonDumps = (
   placeholders: Record<string, object | string>,
   version: ItWalletSpecsVersion,
 ) => {
-  const dumpsDir = path.resolve(process.cwd(), "./dumps");
+  const dumpsDir = resolvePackageAssetPath("./dumps");
 
   const filePath = path.join(dumpsDir, version, fileName);
   if (!existsSync(filePath)) {
@@ -137,15 +138,8 @@ export const loadJsonDumps = (
   }
 };
 
-export function buildAttestationPath(
-  wallet: Config["wallet"],
-  externalTaUrl?: string,
-): string {
-  const base = `${wallet.wallet_attestations_storage_path}/${wallet.wallet_version}/${wallet.wallet_id}`;
-  const suffix = externalTaUrl
-    ? `-${Buffer.from(externalTaUrl).toString("base64url").slice(0, 12)}`
-    : "";
-  return `${base}${suffix}`;
+export function buildAttestationPath(wallet: Config["wallet"]): string {
+  return `${wallet.wallet_attestations_storage_path}/${wallet.wallet_version}/${wallet.wallet_id}`;
 }
 
 export function buildCertPath(pathPrefix: string): string {
@@ -320,11 +314,7 @@ export function saveCredentialToDisk(
   version: ItWalletSpecsVersion,
 ): null | string {
   try {
-    const credentialsPath = path.resolve(
-      process.cwd(),
-      credentialsStoragePath,
-      version,
-    );
+    const credentialsPath = path.resolve(credentialsStoragePath, version);
 
     // Ensure the directory exists
     if (!existsSync(credentialsPath)) {
@@ -353,6 +343,9 @@ export const validateProviderKeyPair = (keyPair: KeyPair): void => {
     throw new Error("invalid key pair: kid does not match");
   }
 };
+
+/** Matches a `client_id` that carries a custom scheme prefix (e.g. `openid_federation:https://…`). */
+export const CLIENT_ID_PREFIX_RE = /^[^:]+:(https?:\/\/)/;
 
 /**
  * Assertion function checking some object's keys are actually defined (not null or undefined)

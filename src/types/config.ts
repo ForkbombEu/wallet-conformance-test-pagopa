@@ -39,6 +39,7 @@ export const configSchema = z.object({
     log_level: z.string(),
   }),
   network: z.object({
+    bind_address: z.string().optional().default("127.0.0.1"),
     max_retries: z.coerce.number().default(10),
     timeout: z.coerce.number().default(10),
     tls_reject_unauthorized: zBooleanFromString.optional().default(true),
@@ -73,8 +74,6 @@ export const configSchema = z.object({
     federation_trust_anchors_jwks_path: z.string(),
   }),
   trust_anchor: z.object({
-    external_ta_onboarding_url: z.string().url().optional(),
-    external_ta_url: z.string().url().optional(),
     port: z.coerce.number(),
     tls_cert_dir: z.string().optional(),
   }),

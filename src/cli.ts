@@ -6,19 +6,50 @@
  * to the test runners via environment variables.
  */
 
-import { execFileSync } from "child_process";
 import { Command } from "commander";
-import { resolve } from "path";
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { join, resolve } from "node:path";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { version } = require("../package.json") as { version: string };
+import type { CliOptions } from "@/logic";
+
+import { packageRoot, readPackageVersion } from "@/logic/runtime-paths";
+
+const nodeRequire = createRequire(import.meta.url);
+
+function runTestCommand(
+  script: "test:issuance" | "test:presentation",
+  options: CliOptions,
+) {
+  const env = setEnvFromOptions(options);
+  const tests = env.TESTS?.split(/\s*,\s*/g).filter((i) => i.length > 0) ?? [];
+  const configFile =
+    script === "test:issuance"
+      ? "vitest.issuance.config.js"
+      : "vitest.presentation.config.js";
+  const vitestBin = nodeRequire.resolve("vitest/vitest.mjs");
+
+  const result = spawnSync(
+    process.execPath,
+    [vitestBin, "run", "--config", join(packageRoot, configFile), ...tests],
+    {
+      env,
+      shell: process.platform === "win32",
+      stdio: "inherit",
+    },
+  );
+
+  if (result.error || result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
 
 /**
  * Sets environment variables from CLI options
  * @param options Commander options object
  * @returns Updated environment object
  */
-function setEnvFromOptions(options: any): NodeJS.ProcessEnv {
+function setEnvFromOptions(options: CliOptions): NodeJS.ProcessEnv {
   const env = { ...process.env };
 
   if (options.fileIni) {
@@ -70,12 +101,6 @@ function setEnvFromOptions(options: any): NodeJS.ProcessEnv {
   if (options.unsafeTls) {
     env.CONFIG_UNSAFE_TLS = "true";
   }
-  if (options.externalTaUrl) {
-    env.CONFIG_EXTERNAL_TA_URL = options.externalTaUrl;
-  }
-  if (options.externalTaOnboardingUrl) {
-    env.CONFIG_EXTERNAL_TA_ONBOARDING_URL = options.externalTaOnboardingUrl;
-  }
   if (options.tests) {
     env.TESTS = options.tests;
   }
@@ -88,7 +113,7 @@ const program = new Command();
 program
   .name("wct")
   .description("Automated conformance testing for IT Wallet ecosystem services")
-  .version(version);
+  .version(readPackageVersion());
 
 // Common options for all test commands
 function addCommonOptions(command: Command): Command {
@@ -158,14 +183,6 @@ function addCommonOptions(command: Command): Command {
       "Disable TLS certificate verification (for local self-signed certs). Sets tls_reject_unauthorized=false (env: CONFIG_UNSAFE_TLS).",
     )
     .option(
-      "--external-ta-url <url>",
-      "URL of an external Trust Anchor to register with (env: CONFIG_EXTERNAL_TA_URL)",
-    )
-    .option(
-      "--external-ta-onboarding-url <url>",
-      "Onboarding URL of an external Trust Anchor (env: CONFIG_EXTERNAL_TA_ONBOARDING_URL)",
-    )
-    .option(
       "--tests <names>",
       "Comma separated list of test names, only the specified tests will be run (env: TESTS)",
     );
@@ -179,17 +196,7 @@ const testIssuance = program
 addCommonOptions(testIssuance);
 
 testIssuance.action((options) => {
-  const env = setEnvFromOptions(options);
-  const tests = env.TESTS?.split(/\s*,\s*/g).filter((i) => i.length > 0) ?? [];
-
-  try {
-    execFileSync("pnpm", ["test:issuance", ...tests], {
-      env,
-      stdio: "inherit",
-    });
-  } catch {
-    process.exit(1);
-  }
+  runTestCommand("test:issuance", options);
 });
 
 // Test Presentation Flow
@@ -200,17 +207,7 @@ const testPresentation = program
 addCommonOptions(testPresentation);
 
 testPresentation.action((options) => {
-  const env = setEnvFromOptions(options);
-  const tests = env.TESTS?.split(/\s*,\s*/g).filter((i) => i.length > 0) ?? [];
-
-  try {
-    execFileSync("pnpm", ["test:issuance", ...tests], {
-      env,
-      stdio: "inherit",
-    });
-  } catch {
-    process.exit(1);
-  }
+  runTestCommand("test:presentation", options);
 });
 
 // Parse command-line arguments

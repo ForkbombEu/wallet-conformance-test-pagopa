@@ -30,10 +30,10 @@ export type RedirectUriStepResponse = StepResponse & {
  * This step handles processing the redirect URI after the authorization response.
  */
 export class RedirectUriDefaultStep extends StepFlow {
-  tag = "REDIRECT URI";
+  static readonly tag = "REDIRECT_URI";
 
   async run(options: RedirectUriOptions): Promise<RedirectUriStepResponse> {
-    const log = this.log.withTag(this.tag);
+    const log = this.log;
     log.debug("Starting redirect uri step...");
 
     return this.execute<RedirectUriExecuteStepResponse>(async () => {
@@ -53,6 +53,8 @@ export class RedirectUriDefaultStep extends StepFlow {
         presentationResponseUri: options.responseUri,
       });
 
+      log.debug("Fetched redirect_uri:", redirect_uri);
+
       if (!redirect_uri) {
         return {
           redirectUri: undefined,
@@ -62,6 +64,7 @@ export class RedirectUriDefaultStep extends StepFlow {
 
       const redirectUri = new URL(redirect_uri);
       const responseCode = redirectUri.searchParams.get("response_code");
+      log.debug("Extracted response_code:", responseCode);
       if (!responseCode) {
         throw new Error("Response code is missing in the redirect URI");
       }
@@ -71,5 +74,9 @@ export class RedirectUriDefaultStep extends StepFlow {
         responseCode,
       };
     });
+  }
+
+  tag(): string {
+    return RedirectUriDefaultStep.tag;
   }
 }

@@ -4,7 +4,7 @@ import {
 } from "@pagopa/io-wallet-oid4vci";
 import {
   createAuthorizationResponse,
-  CreateAuthorizationResponseOptions,
+  type CreateAuthorizationResponseVersionedOptions,
   parseAuthorizeRequest,
   ParsedAuthorizeRequestResult,
 } from "@pagopa/io-wallet-oid4vp";
@@ -79,10 +79,10 @@ export type AuthorizeStepResponse = StepResponse & {
  * - requestObjectJwt: The raw authorization request object JWT as a string.
  */
 export class AuthorizeDefaultStep extends StepFlow {
-  tag = "AUTHORIZE";
+  static readonly tag = "AUTHORIZE";
 
   async run(options: AuthorizeStepOptions): Promise<AuthorizeStepResponse> {
-    const log = this.log.withTag(this.tag);
+    const log = this.log;
 
     log.debug(`Starting Authorize Step`);
 
@@ -102,6 +102,10 @@ export class AuthorizeDefaultStep extends StepFlow {
         config: this.ioWalletSdkConfig,
         requestObjectJwt,
       });
+      log.debug(
+        "Parsed Authorize Request:",
+        JSON.stringify(parsedAuthorizeRequest, null, 2),
+      );
 
       const requestObject = parsedAuthorizeRequest.payload;
       const responseUri = requestObject.response_uri;
@@ -132,6 +136,11 @@ export class AuthorizeDefaultStep extends StepFlow {
       if (!dcqlQuery) {
         throw new Error("dcql_query is missing in the request object");
       }
+
+      if (!requestObject.state) {
+        throw new Error("state is missing in the authorization request object");
+      }
+
       const vp_token = await buildVpToken(
         options.credentials,
         dcqlQuery,
@@ -144,30 +153,35 @@ export class AuthorizeDefaultStep extends StepFlow {
         this.log,
       );
       log.info("VP Token built successfully from DCQL query.");
+      log.debug("VP Token built:", JSON.stringify(vp_token, null, 2));
 
       log.info("Creating Authorization Response...");
       log.debug(
         `Authorization response nonce: ${JSON.stringify({ nonce: requestObject.nonce })}`,
       );
-      const createAuthorizationResponseOptions: CreateAuthorizationResponseOptions =
-        {
-          authorization_encrypted_response_alg:
-            options.rpMetadata.authorization_encrypted_response_alg,
-          authorization_encrypted_response_enc:
-            options.rpMetadata.authorization_encrypted_response_enc,
-          callbacks: {
-            ...partialCallbacks,
-            encryptJwe: getEncryptJweCallback(rpEncKey),
-          },
-          requestObject,
-          rpJwks: {
-            jwks: options.rpMetadata.jwks,
-          },
-          vp_token,
-        };
+      const createAuthorizationResponseOptions = {
+        authorization_encrypted_response_alg:
+          options.rpMetadata.authorization_encrypted_response_alg,
+        authorization_encrypted_response_enc:
+          options.rpMetadata.authorization_encrypted_response_enc,
+        callbacks: {
+          ...partialCallbacks,
+          encryptJwe: getEncryptJweCallback(),
+        },
+        config: this.ioWalletSdkConfig,
+        requestObject,
+        rpJwks: {
+          jwks: options.rpMetadata.jwks,
+        },
+        vp_token,
+      } as CreateAuthorizationResponseVersionedOptions;
 
       const authorizationResponse = await createAuthorizationResponse(
         createAuthorizationResponseOptions,
+      );
+      log.debug(
+        "Authorization Response created:",
+        JSON.stringify(authorizationResponse, null, 2),
       );
       if (!authorizationResponse.jarm) {
         log.error("Failed to create authorization response JARM");
@@ -194,6 +208,10 @@ export class AuthorizeDefaultStep extends StepFlow {
       const authorizeResponse = await sendAuthorizationResponseAndExtractCode(
         sendAuthorizationResponseAndExtractCodeOptions,
       );
+      log.debug(
+        "Authorize response extracted code:",
+        JSON.stringify(authorizeResponse, null, 2),
+      );
 
       return {
         authorizeResponse,
@@ -202,5 +220,9 @@ export class AuthorizeDefaultStep extends StepFlow {
         requestObjectJwt,
       };
     });
+  }
+
+  tag(): string {
+    return AuthorizeDefaultStep.tag;
   }
 }

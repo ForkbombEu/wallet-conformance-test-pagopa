@@ -6,7 +6,8 @@ import { StepFlow, StepResponse } from "../step-flow";
 
 export interface FetchMetadataExecuteResponse {
   discoveredVia?: "federation" | "oid4vci";
-  entityStatementClaims?: any;
+  // Entity statement metadata is version-dependent and consumed structurally by orchestrators/tests.
+  entityStatementClaims?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   status: number;
 }
 
@@ -31,9 +32,10 @@ export type FetchMetadataStepResponse = StepResponse & {
  * - entityStatementClaims: The parsed claims from the entity statement JWT.
  */
 export class FetchMetadataDefaultStep extends StepFlow {
-  tag = "FetchMetadata";
+  static readonly tag = "FETCH_METADATA";
+
   async run(options: FetchMetadataOptions): Promise<FetchMetadataStepResponse> {
-    const log = this.log.withTag(this.tag);
+    const log = this.log;
 
     log.info("Discovering metadata...");
 
@@ -46,11 +48,20 @@ export class FetchMetadataDefaultStep extends StepFlow {
         credentialIssuerUrl: options.baseUrl,
       });
 
+      log.debug(
+        "Metadata fetched successfully:",
+        JSON.stringify(result, null, 2),
+      );
+
       return {
         discoveredVia: result.discoveredVia,
         entityStatementClaims: result.openid_federation_claims,
         status: 200,
       };
     });
+  }
+
+  tag(): string {
+    return FetchMetadataDefaultStep.tag;
   }
 }

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for agentic coding agents working in this repository.
+Guidance for agentic coding agents weorking in this repository.
 
 ## Project Overview
 
@@ -21,7 +21,6 @@ pnpm format:check          # Prettier check only
 pnpm lint                  # ESLint --fix
 pnpm lint:check            # ESLint check only
 pnpm pre-commit            # format + lint (run before every commit)
-pnpm pre-push              # format + lint + type-check + all tests
 
 # Tests
 pnpm test                  # All tests (vitest run)
@@ -102,7 +101,7 @@ Factory helpers live in `tests/helpers/`. Add a new `withX()` helper there whene
 ### Formatting
 
 - Prettier handles all formatting; do not manually align or wrap. Run `pnpm format` before committing.
-- ESLint config extends `@pagopa/eslint-config` (flat config via `eslint.config.mjs`). Avoid `// eslint-disable` comments; if unavoidable, add a brief justification on the same line.
+- ESLint config extends `@pagopa/eslint-config` (flat config via `eslint.config.js`). Avoid `// eslint-disable` comments; if unavoidable, add a brief justification on the same line.
 - The `/* eslint-disable max-lines-per-function */` directive is acceptable at the top of long test specs.
 
 ### Naming Conventions
@@ -124,6 +123,36 @@ Factory helpers live in `tests/helpers/`. Add a new `withX()` helper there whene
 - Validate at boundaries (config load, external API responses) using Zod; throw descriptive errors with context.
 - Use `asserts` type predicates for guard functions that throw (`asserts x is T`).
 
+#### Typed orchestrator errors (`src/orchestrator/errors.ts`)
+
+Orchestrator code must **never** throw a bare `new Error(string)`. Use the typed hierarchy instead — it keeps error codes stable and avoids string-parsing in catch blocks.
+
+Hierarchy:
+
+```
+OrchestratorError (base)            code: string
+  ├── StepOutputError               stepTag, missingField   — a step returned no expected field
+  ├── IssuerMetadataError           missingField, parentObject, requiredFor   — metadata gap
+  └── CredentialConfigurationError  requestedId, reason, availableIds   — config/offer mismatch
+```
+
+When to use each class:
+
+| Situation                                                       | Class                                                             | `code`                                                                                                                   |
+| --------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| A step's result is missing a required field                     | `StepOutputError(stepTag, missingField)`                          | `"STEP_OUTPUT_MISSING"`                                                                                                  |
+| Issuer metadata lacks a required field                          | `IssuerMetadataError(missingField, parentObject, requiredFor)`    | `"ISSUER_METADATA_MISSING_FIELD"`                                                                                        |
+| Requested credential ID not supported by issuer or not in offer | `CredentialConfigurationError(requestedId, reason, availableIds)` | `"CREDENTIAL_CONFIGURATION_MISMATCH"`                                                                                    |
+| Any other orchestrator-level error with no dedicated class      | `OrchestratorError(message, "SPECIFIC_CODE")`                     | e.g. `"CREDENTIAL_CONFIGURATION_ID_UNRESOLVED"`, `"ENTITY_STATEMENT_CLAIMS_MISSING"`, `"AUTHORIZATION_RESPONSE_MISSING"` |
+
+Rules:
+
+- Import directly from `@/orchestrator/errors` — no barrel re-exports.
+- Use `import type` when the class appears only as a type annotation.
+- All classes extend `Error` via `OrchestratorError`, so `instanceof Error` still holds in catch blocks.
+- Human-readable messages are generated in the constructor; never build the message at the throw site.
+- If none of the existing classes fits a new error situation, **add a new subclass** to `src/orchestrator/errors.ts` rather than forcing the error into an ill-fitting existing class or falling back to a bare `new Error(string)`. A new class is the right call whenever the error has structured fields that callers could reasonably inspect (e.g. a missing URL, an unexpected HTTP status, a bad token format).
+
 ### Logging
 
 - Use `this.log.withTag(this.tag)` inside step implementations.
@@ -139,7 +168,7 @@ Factory helpers live in `tests/helpers/`. Add a new `withX()` helper there whene
 - Track pass/fail with a local `let testSuccess = false` and always update it inside `try`, call `log.testCompleted` in `finally`.
 - Prefer `expect(x).toBe(y)` with a descriptive second argument for failures: `expect(result, "reason").toBe(true)`.
 - Use `vi.useFakeTimers` / `vi.useRealTimers` for time-sensitive tests; restore in both `afterEach` and the `finally` block.
-- Unit tests live in `tests/unit/`; they use `vitest.unit.config.mjs` and do not require the Trust Anchor.
+- Unit tests live in `tests/unit/`; they use `vitest.unit.config.js` and do not require the Trust Anchor.
 
 ### Zod Usage
 
@@ -165,26 +194,3 @@ Factory helpers live in `tests/helpers/`. Add a new `withX()` helper there whene
 | `tests/config/test-loader.ts`                               | `TestLoader` — prototype-chain step auto-discovery                |
 | `tests/helpers/par-validation-helpers.ts`                   | Factory helpers for negative PAR tests                            |
 | `tests/global-setup.ts`                                     | Starts the local Trust Anchor before test runs                    |
-
----
-
-## Config (`config.ini`)
-
-Required sections for tests:
-
-```ini
-[issuance]
-url = https://issuer.example.com
-credential_types[] = dc_sd_jwt_SomeCredential
-
-[presentation]
-authorize_request_url = https://verifier.example.com/authorize
-
-[steps_mapping]
-; Example paths for custom steps — create these directories or adjust to your own layout
-HappyFlowIssuance     = ./tests/steps/version_1_0/issuance
-HappyFlowPresentation = ./tests/steps/version_1_0/presentation
-```
-
-- If no `[steps_mapping]` entry exists for a test name, built-in `*DefaultStep` classes are used automatically — no error.
-- CLI options override `config.ini`; a custom `--file-ini` path overrides the default.

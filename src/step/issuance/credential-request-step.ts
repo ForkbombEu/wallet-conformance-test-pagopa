@@ -107,7 +107,7 @@ export interface CredentialRequestStepOptions {
  * It uses the access token obtained in the Token Request Step and the nonce from the Nonce Request Step.
  */
 export class CredentialRequestDefaultStep extends StepFlow {
-  tag = "CREDENTIAL_REQUEST";
+  static readonly tag = "CREDENTIAL_REQUEST";
 
   async createKeyAttestation(
     walletAttestation: CredentialRequestStepOptions["walletAttestation"],
@@ -117,6 +117,7 @@ export class CredentialRequestDefaultStep extends StepFlow {
 
     const x5c = await loadWalletProviderCertificate(
       this.config.wallet,
+      this.config.trust,
       providerKey,
     );
 
@@ -148,7 +149,7 @@ export class CredentialRequestDefaultStep extends StepFlow {
   async run(
     options: CredentialRequestStepOptions,
   ): Promise<CredentialRequestResponse> {
-    const log = this.log.withTag(this.tag);
+    const log = this.log;
 
     log.debug("Starting Credential Request Step");
 
@@ -163,12 +164,17 @@ export class CredentialRequestDefaultStep extends StepFlow {
         options,
         credentialKeyPair,
       );
+      log.debug(
+        "Credential Request:",
+        JSON.stringify(credentialRequest, null, 2),
+      );
 
       log.info("Generating DPoP...");
       const dpop =
         options.dPoPOverride !== undefined
           ? options.dPoPOverride
           : await this.buildDPoP(options);
+      log.debug("DPoP JWT:", dpop);
 
       log.info(
         `Fetching Credential Response from ${options.credentialRequestEndpoint}`,
@@ -181,12 +187,20 @@ export class CredentialRequestDefaultStep extends StepFlow {
         credentialRequest,
         dpop,
       );
+      log.debug(
+        "Credential Response:",
+        JSON.stringify(credentialResponse, null, 2),
+      );
 
       return {
         credentialKeyPair,
         ...credentialResponse,
       } as CredentialRequestExecuteResponse;
     });
+  }
+
+  tag(): string {
+    return CredentialRequestDefaultStep.tag;
   }
 
   private async buildCredentialRequest(
@@ -222,6 +236,8 @@ export class CredentialRequestDefaultStep extends StepFlow {
         options.walletAttestation,
         credentialKeyPair,
       );
+
+      this.log.debug("Key Attestation JWT created:", keyAttestation);
 
       return createCredentialRequest({
         ...commonOptions,

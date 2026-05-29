@@ -3,6 +3,7 @@ import type { ItWalletCredentialVerifierMetadata } from "@pagopa/io-wallet-oid-f
 import {
   createAuthorizationResponse,
   type CreateAuthorizationResponseResult,
+  type CreateAuthorizationResponseVersionedOptions,
   fetchAuthorizationRequest,
   type Openid4vpAuthorizationRequestHeader,
   parseAuthorizeRequest,
@@ -35,7 +36,7 @@ export interface AuthorizationRequestOptions {
   /**
    * Metadata about the verifier from the wallet's perspective.
    */
-  verifierMetadata: ItWalletCredentialVerifierMetadata;
+  verifierMetadata?: ItWalletCredentialVerifierMetadata;
 
   /**
    * Attestation response from the wallet.
@@ -53,12 +54,12 @@ export type AuthorizationRequestStepResponse = StepResponse & {
  * and creating the authorization response to be sent back to the verifier.
  */
 export class AuthorizationRequestDefaultStep extends StepFlow {
-  tag = "AUTHORIZATION";
+  static readonly tag = "AUTHORIZATION_REQUEST";
 
   async run(
     options: AuthorizationRequestOptions,
   ): Promise<AuthorizationRequestStepResponse> {
-    const log = this.log.withTag(this.tag);
+    const log = this.log;
     log.debug("Starting authorization request step...");
 
     return this.execute<AuthorizationRequestExecuteStepResponse>(async () => {
@@ -70,6 +71,8 @@ export class AuthorizationRequestDefaultStep extends StepFlow {
           authorizeRequestUrl,
           callbacks: { fetch },
         });
+      log.debug("Parsed QR Code:", JSON.stringify(parsedQrCode, null, 2));
+      log.debug("Request Object JWT:", requestObjectJwt);
 
       const parsedAuthorizeRequest = await parseAuthorizeRequest({
         callbacks: { verifyJwt },
@@ -104,40 +107,30 @@ export class AuthorizationRequestDefaultStep extends StepFlow {
       );
       log.info("VP Token built successfully from DCQL query.");
 
-      const metadata = {
-        ...options.verifierMetadata,
-        authorization_encrypted_response_alg:
-          options.verifierMetadata.authorization_encrypted_response_alg ||
-          "ECDH-ES",
-        authorization_encrypted_response_enc:
-          options.verifierMetadata.authorization_encrypted_response_enc ||
-          "A128CBC-HS256",
-      };
-
-      const {
-        authorization_encrypted_response_alg,
-        authorization_encrypted_response_enc,
-        jwks,
-      } = metadata;
-
-      const encryptionKey = jwks.keys.find((k) => k.use === "enc");
-      if (!encryptionKey) {
-        throw new Error("no encryption key found in verifier metadata");
-      }
-
       const authorizationResponse = await createAuthorizationResponse({
-        authorization_encrypted_response_alg,
-        authorization_encrypted_response_enc,
+        authorization_encrypted_response_alg:
+          options.verifierMetadata?.authorization_encrypted_response_alg ||
+          undefined,
+        authorization_encrypted_response_enc:
+          options.verifierMetadata?.authorization_encrypted_response_enc ||
+          undefined,
         callbacks: {
           ...partialCallbacks,
-          encryptJwe: getEncryptJweCallback(encryptionKey),
+          encryptJwe: getEncryptJweCallback(),
         },
+        config: this.ioWalletSdkConfig,
         requestObject,
         rpJwks: {
-          jwks: metadata.jwks,
+          encrypted_response_enc_values_supported: options.verifierMetadata
+            ?.encrypted_response_enc_values_supported as string[] | undefined,
+          jwks: options.verifierMetadata?.jwks ?? { keys: [] },
         },
         vp_token,
-      });
+      } as CreateAuthorizationResponseVersionedOptions);
+      log.debug(
+        "Authorization Response created:",
+        JSON.stringify(authorizationResponse, null, 2),
+      );
 
       return {
         authorizationRequestHeader: parsedAuthorizeRequest.header,
@@ -147,5 +140,9 @@ export class AuthorizationRequestDefaultStep extends StepFlow {
         responseUri,
       };
     });
+  }
+
+  tag(): string {
+    return AuthorizationRequestDefaultStep.tag;
   }
 }

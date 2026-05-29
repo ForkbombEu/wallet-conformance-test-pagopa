@@ -18,16 +18,12 @@ describe("Wallet Attestation Unit Test", () => {
   const config = loadConfigWithHierarchy();
 
   test("Generate New Wallet Attestation with Trust Chain", async () => {
-    const attestationPath = buildAttestationPath(
-      config.wallet,
-      config.trust_anchor.external_ta_url,
-    );
+    const attestationPath = buildAttestationPath(config.wallet);
 
     // Remove existing attestation to force new generation
     rmSync(attestationPath, { force: true });
 
     const response = await loadAttestation({
-      network: config.network,
       trust: config.trust,
       trustAnchor: config.trust_anchor,
       wallet: config.wallet,
@@ -92,14 +88,13 @@ describe("Wallet Attestation Unit Test", () => {
 
   test("Load Existing Wallet Attestation", async () => {
     const response = await loadAttestation({
-      network: config.network,
       trust: config.trust,
       trustAnchor: config.trust_anchor,
       wallet: config.wallet,
     });
 
     const attestation = readFileSync(
-      buildAttestationPath(config.wallet, config.trust_anchor.external_ta_url),
+      buildAttestationPath(config.wallet),
       "utf-8",
     );
     expect(response.attestation).toBe(attestation);
@@ -142,7 +137,6 @@ describe("Wallet Attestation Unit Test", () => {
 
     // Generate first attestation
     const firstAttestationResponse = await loadAttestation({
-      network: config.network,
       trust: config.trust,
       trustAnchor: config.trust_anchor,
       wallet: config.wallet,
@@ -152,7 +146,6 @@ describe("Wallet Attestation Unit Test", () => {
 
     // In this case the attestation should not be generated
     const secondAttestationResponse = await loadAttestation({
-      network: config.network,
       trust: config.trust,
       trustAnchor: config.trust_anchor,
       wallet: config.wallet,
@@ -162,7 +155,6 @@ describe("Wallet Attestation Unit Test", () => {
 
     // In this case the attestation should be generated
     const thirdAttestationResponse = await loadAttestation({
-      network: config.network,
       trust: config.trust,
       trustAnchor: config.trust_anchor,
       wallet: config.wallet,
@@ -190,7 +182,6 @@ describe("Wallet Attestation V1_3 Unit Test", () => {
     rmSync(attestationPath, { force: true });
 
     const response = await loadAttestation({
-      network: config.network,
       trust: config.trust,
       trustAnchor: config.trust_anchor,
       wallet: walletV1_3,
@@ -244,7 +235,6 @@ describe("Wallet Attestation V1_3 Unit Test", () => {
 
   test("Load Existing Wallet Attestation V1_3", async () => {
     const response = await loadAttestation({
-      network: config.network,
       trust: config.trust,
       trustAnchor: config.trust_anchor,
       wallet: walletV1_3,
